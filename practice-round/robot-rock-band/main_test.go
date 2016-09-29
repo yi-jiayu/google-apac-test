@@ -24,11 +24,3 @@ func TestPermutation_Next(t *testing.T) {
 		fmt.Println(p.Cursors)
 	}
 }
-
-func TestDistinctNumbers(t *testing.T) {
-	input := []int{1, 2, 2, 3, 3, 4, 5}
-
-	output := DistinctNumbersAndFrequencies(input)
-
-	fmt.Println(output)
-}
