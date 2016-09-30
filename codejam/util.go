@@ -1,13 +1,18 @@
 package codejam
 
 import (
-	"bufio"
 	"strconv"
 	"github.com/pkg/errors"
 	"strings"
 )
 
-func GetNumTestCases(scanner *bufio.Scanner) (int, error) {
+type Scanner interface {
+	Scan() bool
+	Err() error
+	Text() string
+}
+
+func GetNumTestCases(scanner Scanner) (int, error) {
 	success := scanner.Scan()
 	if !success {
 		err := scanner.Err()
@@ -33,7 +38,7 @@ func StringToInts(s string, sep string) ([]int, error) {
 	for _, sInt := range sInts {
 		int_, err := strconv.Atoi(sInt)
 		if err != nil {
-			return ints, errors.New("invalid input")
+			return nil, errors.New("invalid input")
 		}
 
 		ints = append(ints, int_)
@@ -41,3 +46,23 @@ func StringToInts(s string, sep string) ([]int, error) {
 
 	return ints, nil
 }
+
+func ReadLineOfInts(scanner Scanner) ([]int, error) {
+	success := scanner.Scan()
+	if !success {
+		err := scanner.Err()
+		if err != nil {
+			return nil, err
+		} else {
+			return nil, errors.New("unexpected EOF")
+		}
+	}
+
+	ints, err := StringToInts(scanner.Text(), " ")
+	if err != nil {
+		return nil, err
+	}
+
+	return ints, nil
+}
+
