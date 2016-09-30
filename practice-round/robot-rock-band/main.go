@@ -2,102 +2,15 @@ package main
 
 import (
 	"bufio"
-	"fmt"
-	"github.com/pkg/errors"
 	"github.com/yi-jiayu/google-apac-test-2017/codejam"
 	"log"
 	"os"
+	"fmt"
 )
-
-// Steps:
-// Extract distinct robot numbers auditioning for each spot
-// Note number of robots with same numbers
-// Permute all combinations of distinct robot numbers
-// For each permutation, find the number of possible bands by multiplying the numbers of robots with each number
 
 const (
 	BAND_SIZE = 4
 )
-
-type Groups struct {
-	Count  int
-	Sizes  []int
-	Groups [][]int
-}
-
-type Permutation struct {
-	Groups  *Groups
-	Cursors []int
-}
-
-func PopulateGroups(groups [][]int) Groups {
-	length := len(groups)
-
-	sizes := []int{}
-	for _, group := range groups {
-		sizes = append(sizes, len(group))
-	}
-
-	return Groups{
-		length,
-		sizes,
-		groups,
-	}
-}
-
-func NewPermutation(groups *Groups) Permutation {
-	cursors := []int{}
-
-	for i := 0; i < groups.Count; i++ {
-		cursors = append(cursors, 0)
-	}
-
-	return Permutation{
-		groups,
-		cursors,
-	}
-}
-
-func (p Permutation) Next() Permutation {
-	for i := 0; i < p.Groups.Count; i++ {
-		if p.Cursors[i]+1 < p.Groups.Sizes[i] {
-			p.Cursors[i]++
-			break
-		} else {
-			p.Cursors[i] = 0
-		}
-	}
-
-	return p
-}
-
-func (p Permutation) Values() []int {
-	values := []int{}
-
-	for i, cursor := range p.Cursors {
-		values = append(values, p.Groups.Groups[i][cursor])
-	}
-
-	return values
-}
-
-func product(terms ...int) int {
-	p := 1
-	for _, term := range terms {
-		p *= term
-	}
-
-	return p
-}
-
-func xor(terms ...int) int {
-	x := 0
-	for _, term := range terms {
-		x ^= term
-	}
-
-	return x
-}
 
 func DistinctNumbersAndFrequencies(input []int) ([]int, map[int]int) {
 	frequencies := make(map[int]int)
@@ -122,86 +35,83 @@ func DistinctNumbersAndFrequencies(input []int) ([]int, map[int]int) {
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
-	defer func() {
-		if err := recover(); err != nil {
-			if err != nil {
-				log.Fatal(errors.New(fmt.Sprintf("error while processing test cases: %s", err)))
-			} else {
-				log.Fatal(errors.New("unexpected EOF"))
-			}
-		}
-	}()
-
 	T, err := codejam.GetNumTestCases(scanner)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for i := 0; i < T; i++ {
-		// get number of robots auditioning
-		success := scanner.Scan()
-		if !success {
-			panic(scanner.Err())
-		}
-
-		nk, err := codejam.StringToInts(scanner.Text(), " ")
+		nk, err := codejam.ReadLineOfInts(scanner)
 		if err != nil {
-			log.Fatal(errors.New("invalid input"))
+			log.Fatal(err)
 		}
 
 		K := nk[1]
+		var distinctCandidates [4][]int
+		var numberFrequencies [4]map[int]int
 
-		// get candidates
-		candidates := [][]int{}
-
-		for j := 0; j < 4; j++ {
-			success := scanner.Scan()
-			if !success {
-				panic(scanner.Err())
-			}
-
-			numbers, err := codejam.StringToInts(scanner.Text(), " ")
+		for j := 0; j < BAND_SIZE; j++ {
+			numbers, err := codejam.ReadLineOfInts(scanner)
 			if err != nil {
-				log.Fatal("invalid input")
+				log.Fatal(err)
 			}
 
-			candidates = append(candidates, numbers)
+			dC, nF := DistinctNumbersAndFrequencies(numbers)
+			distinctCandidates[j] = dC
+			numberFrequencies[j] = nF
 		}
 
-		distinctCandidates := [][]int{}
-		candidateFrequencies := []map[int]int{}
+		// find all distinct combinations of AB and CD
+		combAB := make(map[int][][2]int)
+		combCD := make(map[int][][2]int)
 
-		for _, numbers := range candidates {
-			d, f := DistinctNumbersAndFrequencies(numbers)
-			distinctCandidates = append(distinctCandidates, d)
-			candidateFrequencies = append(candidateFrequencies, f)
-		}
-
-		groups := PopulateGroups(distinctCandidates)
-		perm := NewPermutation(&groups)
-		totalPermutations := product(groups.Sizes...)
-		validPermutations := [][]int{}
-
-		for l := 0; l < totalPermutations; l++ {
-			values := perm.Values()
-			xor := xor(values...)
-			if xor == K {
-				validPermutations = append(validPermutations, values)
+		for _, A := range distinctCandidates[0] {
+			for _, B := range distinctCandidates[1] {
+				key := A ^ B
+				if val, exists := combAB[key]; !exists {
+					combAB[key] = [][2]int{[2]int{A, B}}
+				} else {
+					combAB[key] = append(val, [2]int{A, B})
+				}
 			}
-			perm = perm.Next()
 		}
 
-		// count number of possible bands
+		for _, C := range distinctCandidates[2] {
+			for _, D := range distinctCandidates[3] {
+				key := C ^ D ^ K
+				if val, exists := combCD[key]; !exists {
+					combCD[key] = [][2]int{[2]int{C, D}}
+				} else {
+					combCD[key] = append(val, [2]int{C, D})
+				}
+			}
+		}
+
+		// find all the combinations of A^B and C^D^K which are equal to each other
+		trendyBands := make([][4]int, 0)
+
+		for key, ABs := range combAB {
+			if CDs, exists := combCD[key]; exists {
+				for _, AB := range ABs {
+					for _, CD := range CDs {
+						ABCD := [4]int{AB[0], AB[1], CD[0], CD[1]}
+						trendyBands = append(trendyBands, ABCD)
+					}
+				}
+			}
+		}
+
+		// count number of possible bands, taking into account repeated robot numbers
 		accum := 0
 
-		for _, permutation := range validPermutations {
-			count := product(
-				candidateFrequencies[0][permutation[0]],
-				candidateFrequencies[1][permutation[1]],
-				candidateFrequencies[2][permutation[2]],
-				candidateFrequencies[3][permutation[3]])
-
-			accum += count
+		// for each trendy band, multiply the frequencies of the number in the i-th spot
+		// in the set of candidates for that slot together
+		for _, band := range trendyBands {
+			A, B, C, D := band[0], band[1], band[2], band[3]
+			accum += numberFrequencies[0][A] *
+				numberFrequencies[1][B] *
+				numberFrequencies[2][C] *
+				numberFrequencies[3][D]
 		}
 
 		fmt.Printf("Case #%d: %d\n", i + 1, accum)
